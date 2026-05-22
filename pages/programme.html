@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programme · Agora des Sciences</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="icon" type="image/x-icon" href="../media/favicon/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="../media/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../media/favicon/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../media/favicon/apple-touch-icon.png">
+  <link rel="manifest" href="../media/favicon/site.webmanifest">
+</head>
+<body data-root-prefix="../">
+  <div id="nav-root"></div>
+
+  <main class="page">
+
+    <!-- ── HEADER ── -->
+    <section style="background:var(--azur-fonce);color:#fff;padding:calc(var(--nav-h) + 3.5rem) clamp(1.5rem,5vw,3rem) 3.5rem;position:relative;overflow:hidden;">
+      <div style="position:absolute;right:-60px;top:-60px;width:350px;height:350px;border-radius:50%;background:radial-gradient(circle,rgba(255,162,90,.15),transparent 70%);"></div>
+      <div class="section-inner" style="position:relative;z-index:1;">
+        <span class="section-label">Timetable</span>
+        <h1 class="section-title" style="color:#fff;font-size:clamp(2.2rem,5vw,3.8rem);">Programme</h1>
+        <p style="color:rgba(255,255,255,.65);font-size:1.05rem;max-width:580px;line-height:1.8;font-weight:300;margin-bottom:2rem;">
+        </p>
+      </div>
+    </section>
+
+    <!-- ── CAROUSEL DES INTERVENTIONS ── -->
+    <section class="carousel-section">
+      <div class="carousel-header">
+        <span class="section-label">Interventions</span>
+        <h2 class="section-title">Les interventions</h2>
+      </div>
+      <div class="carousel-wrapper">
+        <div class="carousel-track" id="carouselTrack">
+          <!-- populated by JS from CSV -->
+        </div>
+      </div>
+      <div class="carousel-controls">
+        <button class="carousel-btn" id="carouselPrev" aria-label="Précédent">&#8592;</button>
+        <div class="carousel-dots" id="carouselDots"></div>
+        <button class="carousel-btn" id="carouselNext" aria-label="Suivant">&#8594;</button>
+      </div>
+    </section>
+
+    <!-- ── TIMETABLE ── -->
+    <section>
+      <div class="section-inner">
+        <p>Clickez sur les interventions pour plus de détails</p>
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:2.5rem;flex-wrap:wrap;">
+        <div class="timetable" id="timetable">
+          <div class="timetable-loading">Chargement du programme…</div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CTA INSCRIPTION ── -->
+    <section style="background:var(--cream);color:var(--azur-fonce);text-align:center;">
+      <div class="section-inner" style="max-width:680px;">
+        <div class="fade-up">
+        <span class="section-label">Rejoignez-nous</span>
+        <h2 class="section-title" style="color:var(--azur-fonce);">Prêt·e à participer ?</h2>
+        <p style="color:var(--azur-fonce);font-size:1.05rem;margin-bottom:2rem;line-height:1.8;font-weight:300;">
+          <center><strong>Inscription gratuite mais obligatoire.</strong> <br>
+          Attention le nombre de places est limité</center><br>
+        </p>
+        <a href="inscription.html" class="btn btn-primary" style="font-size:1rem;">
+          S'inscrire gratuitement →
+        </a>
+      </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="footer-root"></div>
+  <script src="../js/components.js"></script>
+  <script src="../js/main.js"></script>
+  <script>
+  /* ═══════════════════════════════════════════════════════════════
+     Programme loader — reads ../programme.csv
+     CSV columns: heure, type, titre, intervenant, lien, image
+  ═══════════════════════════════════════════════════════════════ */
+
+  const CSV_URL = '../programme.csv';
+
+  const TYPE_MAP = {
+    conf:    { label: 'Conférence',  cls: 'type-conf'    },
+    table:   { label: 'Table ronde', cls: 'type-table'   },
+    atelier: { label: 'Atelier',     cls: 'type-atelier' },
+    poster:  { label: 'Poster',      cls: 'type-poster'  },
+    pause:   { label: 'Pause',       cls: 'type-pause'   },
+  };
+
+  /* ── CSV parser (handles quoted fields) ── */
+  function parseCSV(raw) {
+    const lines = raw.trim().split('\n');
+    const headers = lines[0].split(',').map(s => s.trim().replace(/\r/g,''));
+    return lines.slice(1).filter(l => l.trim()).map(line => {
+      const vals = [];
+      let cur = '', inQ = false;
+      for (const c of line) {
+        if (c === '"')           { inQ = !inQ; }
+        else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+        else                     { cur += c; }
+      }
+      vals.push(cur.trim().replace(/\r/g,''));
+      return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']));
+    });
+  }
+
+  /* ── Session banner logic ── */
+  function sessionLabel(slot) {
+    const h = parseInt(slot.heure);
+    if (h >= 10 && h < 12) return 'Session 1 · Matin';
+    if (h >= 13 && h < 16) return 'Session 2 · Après-midi';
+    return null;
+  }
+
+  /* ── Build timetable ── */
+  function buildTimetable(slots) {
+    const container = document.getElementById('timetable');
+    container.innerHTML = '';
+    let lastSession = null;
+
+    slots.forEach(slot => {
+      /* session divider */
+      const sess = sessionLabel(slot);
+      if (sess && sess !== lastSession) {
+        lastSession = sess;
+        const div = document.createElement('div');
+        div.className = 'session-divider fade-up';
+        div.innerHTML = '<span>' + sess + '</span>';
+        container.appendChild(div);
+      }
+
+      const wrap = document.createElement('div');
+      wrap.className = 'time-slot fade-up';
+
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'slot-time';
+      timeDiv.textContent = slot.heure;
+      wrap.appendChild(timeDiv);
+
+      if (slot.type === 'pause' || !slot.lien) {
+        const card = document.createElement('div');
+        card.className = (slot.type === 'pause') ? 'slot-card break' : 'slot-card';
+        card.innerHTML = '<h3>' + slot.titre + '</h3>';
+        wrap.appendChild(card);
+      } else {
+        const info = TYPE_MAP[slot.type] || TYPE_MAP.conf;
+        const a = document.createElement('a');
+        a.href = slot.lien;
+        a.className = 'slot-card';
+        a.innerHTML =
+          '<span class="slot-type ' + info.cls + '">' + info.label + '</span>' +
+          '<span class="slot-arrow">&#8594;</span>' +
+          '<h3>' + slot.titre + '</h3>' +
+          '<div class="speaker">' + slot.intervenant + '</div>';
+        wrap.appendChild(a);
+      }
+      container.appendChild(wrap);
+    });
+
+    /* trigger fade-in for newly-added elements */
+    container.querySelectorAll('.fade-up').forEach(el => {
+      if (window._fadeObserver) {
+        window._fadeObserver.observe(el);
+      } else {
+        el.classList.add('visible'); /* fallback: show immediately */
+      }
+    });
+  }
+
+  /* ── Build carousel (image-only, 1080×1350) ── */
+  function buildCarousel(slots) {
+    const interventions = slots.filter(s => s.type !== 'pause');
+    const track = document.getElementById('carouselTrack');
+    const dotsWrap = document.getElementById('carouselDots');
+    track.innerHTML = '';
+    dotsWrap.innerHTML = '';
+
+    if (!interventions.length) {
+      track.innerHTML = '<p style="color:rgba(255,255,255,.35);padding:2rem 3rem;font-size:.9rem;">Aucune intervention disponible.</p>';
+      return;
+    }
+
+    interventions.forEach((slot, i) => {
+      const slide = document.createElement('div');
+      slide.className = 'carousel-slide' + (slot.lien ? ' clickable' : '');
+
+      if (slot.image) {
+        const img = document.createElement('img');
+        img.src = '../' + slot.image;
+        img.alt = slot.titre;
+        img.loading = 'lazy';
+        img.onerror = function() {
+          const ph = document.createElement('div');
+          ph.className = 'carousel-slide-placeholder';
+          ph.innerHTML = '<span class="ph-icon">🖼</span>Image à venir';
+          this.parentElement.replaceChild(ph, this);
+        };
+        slide.appendChild(img);
+      } else {
+        slide.innerHTML = '<div class="carousel-slide-placeholder"><span class="ph-icon">🖼</span>Image à venir</div>';
+      }
+
+      if (slot.lien) {
+        const href = slot.lien;
+        slide.addEventListener('click', () => { window.location.href = href; });
+      }
+
+      track.appendChild(slide);
+
+      const dot = document.createElement('button');
+      dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', 'Intervention ' + (i + 1));
+      dot.dataset.idx = String(i);
+      dotsWrap.appendChild(dot);
+    });
+
+    initCarousel(interventions.length);
+  }
+
+  /* ── Carousel controller ── */
+  function initCarousel(count) {
+    const track   = document.getElementById('carouselTrack');
+    const dotsWrap = document.getElementById('carouselDots');
+    let current = 0;
+
+    function sw() {
+      const slide = track.querySelector('.carousel-slide');
+      if (!slide) return 0;
+      return slide.offsetWidth + (parseFloat(getComputedStyle(track).gap) || 24);
+    }
+
+    function goTo(idx) {
+      current = Math.max(0, Math.min(idx, count - 1));
+      track.style.transform = 'translateX(-' + (current * sw()) + 'px)';
+      dotsWrap.querySelectorAll('.carousel-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === current);
+      });
+    }
+
+    dotsWrap.addEventListener('click', e => {
+      if (e.target.classList.contains('carousel-dot')) goTo(Number(e.target.dataset.idx));
+    });
+    document.getElementById('carouselPrev').addEventListener('click', () => goTo(current - 1));
+    document.getElementById('carouselNext').addEventListener('click', () => goTo(current + 1));
+
+    /* swipe */
+    let tx = 0;
+    track.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+    track.addEventListener('touchend',   e => {
+      const dx = e.changedTouches[0].clientX - tx;
+      if (Math.abs(dx) > 40) goTo(current + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+
+    window.addEventListener('resize', () => goTo(current));
+  }
+
+  /* ── Fetch & render ── */
+  function run(text) {
+    const slots = parseCSV(text);
+    buildTimetable(slots);
+    buildCarousel(slots);
+  }
+
+  fetch(CSV_URL)
+    .then(r => { if (!r.ok) throw new Error('CSV introuvable (' + r.status + ')'); return r.text(); })
+    .then(text => {
+      /* wait for DOMContentLoaded (and thus _fadeObserver) before building */
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => run(text));
+      } else {
+        run(text);
+      }
+    })
+    .catch(err => {
+      document.getElementById('timetable').innerHTML =
+        '<div class="timetable-loading" style="color:#e55;">' +
+        'Impossible de charger le programme&nbsp;: <em>' + err.message + '</em>.<br>' +
+        'Assurez-vous que <code>programme.csv</code> est à la racine du site et que le serveur autorise le fetch (pas de file://).' +
+        '</div>';
+      document.getElementById('carouselTrack').innerHTML =
+        '<p style="color:rgba(255,255,255,.35);padding:2rem 3rem;font-size:.9rem;">Programme non disponible.</p>';
+    });
+  </script>
+</body>
+</html>
