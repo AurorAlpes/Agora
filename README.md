@@ -8,16 +8,14 @@ Site statique pour l'événement **Agora des Sciences** organisé par [AurorAlpe
 agora-sciences/
 ├── index.html              # Page d'accueil
 ├── css/
-│   └── style.css           # Styles (charte graphique AurorAlpes)
+│   └── style.css           # Styles
 ├── js/
 │   ├── components.js       # Navigation & footer partagés
 │   └── main.js             # Animations & interactions
 └── pages/
-    ├── a-propos.html        # Section À propos
+    ├── a-propos.html        # Section À propos & position
     ├── programme.html       # Timetable (style Indico)
     ├── inscription.html     # Formulaire Framaforms
-    ├── contact.html         # Contact & carte
-    ├── auroralpes.html      # Présentation AurorAlpes
     └── contributions/       # 1 page par contribution
         ├── ouverture.html
         ├── contrib-1.html
@@ -55,5 +53,4 @@ Ajoutez ensuite le lien correspondant dans `pages/programme.html`.
 Recherchez `Date à confirmer` et `Grenoble, Isère` dans les fichiers HTML.
 
 ## Typographie
-Le site utilise **Nunito / Nunito Sans** (Google Fonts) comme substitut libre à Gilroy.
-Pour utiliser Gilroy si vous possédez la licence, remplacez l'import Google Fonts dans `style.css`.
+Le site utilise **Gilroy** 
